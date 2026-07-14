@@ -1,5 +1,9 @@
 <img width="6912" height="3456" alt="Alfredo Torres" src="https://github.com/user-attachments/assets/a09053eb-c626-4f94-9d95-f236fc22bb03" />
 
+---
+## Achievement
+
+Our team won the **Best Cybersecurity Project** award at the *GreenCode 2026 Hackathon*.
 # Safehouse
 
 > **Know where a link goes before you click.**
