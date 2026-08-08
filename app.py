@@ -4,6 +4,7 @@ import base64
 import datetime as dt
 import ipaddress
 import json
+from concurrent.futures import ThreadPoolExecutor
 import mimetypes
 import os
 import re
@@ -14,7 +15,6 @@ import subprocess
 import tempfile
 import time
 import zipfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
 from xml.etree import ElementTree as ET
@@ -60,20 +60,9 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "llama-3.1-8b-instant"
 
 CACHE_TTL = 300
-# FIX 4: Bound cache sizes to prevent unbounded memory growth.
-# LOOKUP_CACHE holds per-request TLS/ASN/WHOIS results; RESULT_CACHE holds
-# full analysis results keyed by URL.  Both are capped and entries are
-# expired lazily on every insertion.
-_MAX_LOOKUP_CACHE = 500
-_MAX_RESULT_CACHE = 200
 MAX_HOPS = 10
-
-# FIX 4 (cont.): Replace bare dicts with bounded caches.
-# The old code had no eviction policy at all — every unique IP, hostname, and
-# URL would accumulate forever, leaking memory in long-running workers.
 LOOKUP_CACHE: dict[str, dict] = {}
 RESULT_CACHE: dict[str, tuple[float, dict]] = {}
-
 REDIRECTS = {301, 302, 303, 307, 308}
 
 ALLOWED_EXTENSIONS = set(
@@ -102,18 +91,6 @@ PAGE_PATTERNS = {
     "miners": [("coinhive", r"coinhive"), ("cryptonight", r"cryptonight"), ("minero", r"minero\.cc"), ("web miner", r"webmr\.js|coin-hive|jsecoin|cryptoloot|deepminer|ppoi\.org")],
 }
 
-# FIX 3: Pre-compile all regexes at module load time.
-# The old code called re.search(..., pattern, re.I) on every call to
-# analyze_page_content, which recompiles the pattern every time.  With
-# 15+ tracker patterns this is measurable overhead on every HTML analysis.
-_COMPILED_PATTERNS: dict[str, list[tuple[str, re.Pattern[str]]]] = {
-    group: [(name, re.compile(pat, re.I)) for name, pat in patterns]
-    for group, patterns in PAGE_PATTERNS.items()
-}
-_RE_SCRIPT_SRC = re.compile(r"""src=["']https?://([^/"']+)""", re.I)
-_RE_JSON_FENCE = re.compile(r"^```(?:json)?\s*|\s*```$")
-_RE_SCAN_ID = re.compile(r"[0-9a-fA-F-]{32,40}")
-
 SENSITIVE_FIELDS = {
     "gps": "GPSLatitude GPSLongitude GPSAltitude GPSPosition GPSLatitudeRef GPSLongitudeRef GPSMapDatum".split(),
     "device": "Make Model LensModel LensMake Software HostComputer CameraID DeviceSerialNumber".split(),
@@ -131,36 +108,9 @@ OOXML_NS = {
     "ep": "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties",
 }
 
-# FIX 3 (cont.): Pre-build a flat set of all sensitive field names for O(1) lookup.
-# The original metadata_from_raw iterated over every field × every category on
-# each call; this set lets us skip the inner loop for non-sensitive fields.
-_ALL_SENSITIVE_FIELDS: set[str] = {f for fields in SENSITIVE_FIELDS.values() for f in fields}
-
-
-def _evict_lookup_cache() -> None:
-    """Drop oldest half of LOOKUP_CACHE when it exceeds the cap."""
-    if len(LOOKUP_CACHE) >= _MAX_LOOKUP_CACHE:
-        # dict preserves insertion order in Python 3.7+; drop the first half.
-        drop = list(LOOKUP_CACHE)[:_MAX_LOOKUP_CACHE // 2]
-        for k in drop:
-            LOOKUP_CACHE.pop(k, None)
-
-
-def _evict_result_cache() -> None:
-    """Drop expired entries, then oldest entries if still over cap."""
-    now = time.time()
-    expired = [k for k, (ts, _) in RESULT_CACHE.items() if now - ts >= CACHE_TTL]
-    for k in expired:
-        RESULT_CACHE.pop(k, None)
-    if len(RESULT_CACHE) >= _MAX_RESULT_CACHE:
-        drop = list(RESULT_CACHE)[: len(RESULT_CACHE) - _MAX_RESULT_CACHE + 1]
-        for k in drop:
-            RESULT_CACHE.pop(k, None)
-
 
 def cached(key: str, fn):
     if key not in LOOKUP_CACHE:
-        _evict_lookup_cache()
         LOOKUP_CACHE[key] = fn()
     return LOOKUP_CACHE[key]
 
@@ -256,26 +206,6 @@ def get_domain_age(hostname: str) -> dict:
     return cached(f"domain:{apex}", lookup)
 
 
-def _fetch_hop_enrichments(host: str, scheme: str, ip: str) -> tuple[dict, dict, dict]:
-    """Fetch TLS, domain-age, and ASN in parallel for a single hop.
-
-    FIX 1: The original code fetched these three enrichments sequentially
-    inside the main redirect-following loop.  Each can block for up to 6 s,
-    so a 3-hop chain could add 54 s of serial I/O *per hop*.  Running them
-    concurrently cuts that to the slowest single lookup (≈6 s).
-    """
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        tls_future = pool.submit(get_tls_info, host) if scheme == "https" else None
-        age_future = pool.submit(get_domain_age, host)
-        asn_future = pool.submit(get_asn, ip)
-
-        tls = tls_future.result() if tls_future else {"valid": False, "issuer": "http only", "age_days": -1, "expires_in_days": -1}
-        domain_age = age_future.result()
-        asn = asn_future.result()
-
-    return tls, domain_age, asn
-
-
 def score_hop(hop: dict) -> dict:
     flags, score = [], 0
     host = (hop.get("hostname") or "").lower()
@@ -354,12 +284,8 @@ def score_hop(hop: dict) -> dict:
 
 
 def analyze_page_content(html: str) -> dict:
-    # FIX 3 (cont.): Use pre-compiled patterns instead of re.search with raw strings.
-    found = {
-        group: sorted({name for name, compiled in patterns if compiled.search(html)})
-        for group, patterns in _COMPILED_PATTERNS.items()
-    }
-    scripts = list(dict.fromkeys(_RE_SCRIPT_SRC.findall(html)))[:20]
+    found = {group: sorted({name for name, pattern in patterns if re.search(pattern, html, re.I)}) for group, patterns in PAGE_PATTERNS.items()}
+    scripts = list(dict.fromkeys(re.findall(r"""src=["']https?://([^/"']+)""", html, re.I)))[:20]
     return {**found, "script_domains": scripts, "has_threats": bool(found["fingerprints"] or found["miners"])}
 
 
@@ -478,18 +404,13 @@ def metadata_from_raw(raw: dict, filepath: str, filename: str) -> dict:
     flat = flatten_metadata(raw)
     findings = {cat: {} for cat in SENSITIVE_FIELDS}
     all_fields = {}
-
     for field, value in flat.items():
         if field in IGNORED_METADATA:
             continue
         all_fields[field] = str(value)
-        # FIX 3 (cont.): Use pre-built set for O(1) membership test before
-        # doing the per-category inner loop — avoids iterating all categories
-        # for every non-sensitive field (which is the majority of fields).
-        if field in _ALL_SENSITIVE_FIELDS:
-            for category, fields in SENSITIVE_FIELDS.items():
-                if field in fields:
-                    findings[category][field] = str(value)
+        for category, fields in SENSITIVE_FIELDS.items():
+            if field in fields:
+                findings[category][field] = str(value)
 
     gps = f"{flat['GPSLatitude']}, {flat['GPSLongitude']}" if flat.get("GPSLatitude") and flat.get("GPSLongitude") else None
     checks = (
@@ -642,20 +563,16 @@ def urlscan_submit(url: str) -> dict:
 
 
 def urlscan_lookup(url: str) -> dict:
-    # FIX 2: The original polled urlscan with 5 × time.sleep(5) = up to 25 s
-    # of blocking delay, making it the single biggest contributor to response
-    # latency.  The /analyze/intel endpoint already parallelises VT and urlscan
-    # with ThreadPoolExecutor, but those 25 s still block a Flask worker thread.
-    #
-    # New behaviour: submit and return immediately with ready=False.  The
-    # client already has a /urlscan-result/<id> polling endpoint; it should
-    # poll that instead.  This reduces the worst-case blocking from 25 s → ~1 s
-    # (just the submit request).  The /analyze route that calls this serially
-    # benefits most: it shed up to 25 s of wall-clock time on every cold miss.
     base = urlscan_submit(url)
     if not base.get("available") or not base.get("uuid"):
         return base
-    # Return immediately with ready=False; let the caller poll /urlscan-result/<id>
+    scan_id = base["uuid"]
+    headers = {"API-Key": URLSCAN_KEY}
+    for _ in range(5):
+        time.sleep(5)
+        poll = requests.get(f"https://urlscan.io/api/v1/result/{scan_id}/", headers=headers, timeout=8)
+        if poll.status_code == 200:
+            return urlscan_apply_result(base, poll.json())
     return base
 
 
@@ -686,7 +603,7 @@ def groq_json(prompt: str, max_tokens: int) -> dict:
         if res.status_code != 200:
             return {"available": False, "error": f"Groq HTTP {res.status_code}"}
         text = res.json()["choices"][0]["message"]["content"].strip()
-        text = _RE_JSON_FENCE.sub("", text)
+        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text)
         start, end = text.find("{"), text.rfind("}")
         return {"available": True, **json.loads(text[start : end + 1] if start != -1 and end != -1 else text)}
     except Exception as exc:
@@ -732,15 +649,7 @@ def normalize_url(url: str) -> str:
 
 
 def follow_chain(url: str) -> tuple[list[dict], str]:
-    # FIX 5: Removed LOOKUP_CACHE.clear() which was called at the start of
-    # every follow_chain invocation, defeating cross-request caching of TLS,
-    # ASN and WHOIS results.  Those lookups are keyed by host/IP so they are
-    # safe to retain across requests.  The bounded eviction functions handle
-    # memory pressure instead.
-    #
-    # FIX 1 (cont.): Per-hop TLS + domain-age + ASN lookups are now dispatched
-    # in parallel via _fetch_hop_enrichments, then score_hop is called with the
-    # pre-fetched results.
+    LOOKUP_CACHE.clear()
     session = requests.Session()
     headers = {"User-Agent": "Mozilla/5.0 Safehouse/1.0", "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.5"}
     hops, seen, final_html = [], set(), ""
@@ -768,21 +677,7 @@ def follow_chain(url: str) -> tuple[list[dict], str]:
 
         if res.status_code not in REDIRECTS and "html" in res.headers.get("content-type", ""):
             final_html = res.text[:80000]
-
-        # Fetch TLS, WHOIS and ASN concurrently rather than sequentially.
-        tls, domain_age, asn = _fetch_hop_enrichments(host, scheme, ip)
-
-        hops.append(score_hop({
-            "url": current,
-            "hostname": host,
-            "scheme": scheme,
-            "ip": ip,
-            "status_code": res.status_code,
-            "headers": {k.lower(): v for k, v in res.headers.items()},
-            "tls": tls,
-            "domain_age": domain_age,
-            "asn": asn,
-        }))
+        hops.append(score_hop({"url": current, "hostname": host, "scheme": scheme, "ip": ip, "status_code": res.status_code, "headers": {k.lower(): v for k, v in res.headers.items()}, "tls": get_tls_info(host) if scheme == "https" else {"valid": False, "issuer": "http only", "age_days": -1, "expires_in_days": -1}, "domain_age": get_domain_age(host), "asn": get_asn(ip)}))
         if res.status_code not in REDIRECTS:
             break
         location = res.headers.get("Location", "").strip()
@@ -800,21 +695,9 @@ def chain_summary(chain: list[dict]) -> str:
     )
 
 
-def _parse_request_body() -> dict:
-    """Parse the JSON request body once and return it.
-
-    FIX 5 (cont.): Several routes called request.get_json(silent=True) two or
-    three times in the same request lifecycle.  While Flask caches the parsed
-    body, the repeated None-guard boilerplate scattered through route handlers
-    is noisy and error-prone.  Centralising it here also makes parse_analyze_url
-    consistent with the rest of the body consumption.
-    """
-    return request.get_json(silent=True) or {}
-
-
 def parse_analyze_url() -> str:
     try:
-        return normalize_url(_parse_request_body().get("url") or "")
+        return normalize_url((request.get_json(silent=True) or {}).get("url") or "")
     except ValueError as exc:
         raise ValueError(str(exc)) from exc
 
@@ -867,13 +750,12 @@ def analyze_chain():
 
 @app.route("/analyze/intel", methods=["POST"])
 def analyze_intel():
-    body = _parse_request_body()
     try:
-        url = normalize_url(body.get("url") or "")
+        url = parse_analyze_url()
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
-    if not bool_value(body.get("external_intel"), True):
+    if not bool_value((request.get_json(silent=True) or {}).get("external_intel"), True):
         return jsonify({"virustotal": {"available": False}, "urlscan": {"available": False}})
 
     with ThreadPoolExecutor(max_workers=2) as pool:
@@ -886,12 +768,12 @@ def analyze_intel():
 
 @app.route("/analyze/ai", methods=["POST"])
 def analyze_ai():
-    body = _parse_request_body()
     try:
-        url = normalize_url(body.get("url") or "")
+        url = parse_analyze_url()
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
+    body = request.get_json(silent=True) or {}
     if not bool_value(body.get("external_intel"), True):
         return jsonify({"ai_analysis": {"available": False}})
 
@@ -903,9 +785,8 @@ def analyze_ai():
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
-    body = _parse_request_body()
     try:
-        url = normalize_url(body.get("url") or "")
+        url = parse_analyze_url()
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -921,53 +802,33 @@ def analyze():
     except Exception as exc:
         return jsonify({"error": f"Analysis failed: {exc}"}), 500
 
-    external = bool_value(body.get("external_intel"), True)
+    external = bool_value((request.get_json(silent=True) or {}).get("external_intel"), True)
     summary = chain_summary(chain)
     html_excerpt = html[:3000] if html else ""
-
-    # FIX 2 (cont.): Run VT, urlscan and Groq AI in parallel when external
-    # intel is requested.  The old /analyze route called them sequentially:
-    # vt_lookup (~1 s) + urlscan_lookup (up to 25 s) + ai_site (~2 s) = ~28 s.
-    # With parallelism the wall-clock time is the slowest of the three (~2 s
-    # now that urlscan_lookup no longer polls).
-    if external:
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            vt_f = pool.submit(vt_lookup, url)
-            us_f = pool.submit(urlscan_lookup, url)
-            ai_f = pool.submit(ai_site, url, summary, html_excerpt)
-            vt_result = vt_f.result()
-            us_result = us_f.result()
-            ai_result = ai_f.result()
-    else:
-        vt_result = {"available": False}
-        us_result = {"available": False}
-        ai_result = {"available": False}
-
     result = {
         "chain": chain,
         "overall_risk": max((hop.get("risk_score", 0) for hop in chain), default=0),
         "page_analysis": analyze_page_content(html) if html else {},
-        "virustotal": vt_result,
-        "urlscan": us_result,
-        "ai_analysis": ai_result,
+        "virustotal": vt_lookup(url) if external else {"available": False},
+        "urlscan": urlscan_lookup(url) if external else {"available": False},
+        "ai_analysis": ai_site(url, summary, html_excerpt) if external else {"available": False},
         "elapsed": elapsed,
         "cached": False,
     }
-    _evict_result_cache()
     RESULT_CACHE[url] = (now, result)
     return jsonify(result)
 
 
 @app.route("/urlscan-result/<scan_id>")
 def urlscan_result_route(scan_id):
-    if not _RE_SCAN_ID.fullmatch(scan_id):
+    if not re.fullmatch(r"[0-9a-fA-F-]{32,40}", scan_id):
         return jsonify({"error": "Invalid urlscan id"}), 400
     return jsonify(urlscan_result(scan_id))
 
 
 @app.route("/urlscan-screenshot/<scan_id>")
 def urlscan_screenshot_route(scan_id):
-    if not _RE_SCAN_ID.fullmatch(scan_id):
+    if not re.fullmatch(r"[0-9a-fA-F-]{32,40}", scan_id):
         return jsonify({"error": "Invalid urlscan id"}), 400
     if not URLSCAN_KEY:
         return jsonify({"error": "No urlscan API key configured"}), 503
