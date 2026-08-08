@@ -1,4 +1,4 @@
-﻿const historyItems = []
+const historyItems = []
 let currentMode = 'url'
 let selectedFile = null
 let screenshotPollTimer = null
@@ -101,7 +101,7 @@ function initCanvas() {
   }
   function draw() {
     ctx.clearRect(0,0,W,H)
-    ctx.fillStyle = '#000000'; ctx.fillRect(0,0,W,H)
+    ctx.fillStyle = '#f5f4f0'; ctx.fillRect(0,0,W,H)
     circles.forEach(c => {
       const g = ctx.createRadialGradient(c.x,c.y,0,c.x,c.y,c.r)
       g.addColorStop(0,`hsla(${c.hue},60%,70%,${c.alpha})`)
@@ -464,9 +464,8 @@ function renderScreenshot(us) {
     const probe = new Image()
     probe.onload = () => {
       stopScreenshotPoll()
-      img.onerror = null
-      img.onload = showImage
       img.src = probe.src
+      showImage()
     }
     probe.onerror = () => {}
     probe.src = bustUrl(src)
@@ -856,4 +855,3 @@ function loadFromHistory(idx) {
 document.getElementById('urlInput').addEventListener('keydown', e => {
   if (e.key==='Enter') analyze()
 })
-
