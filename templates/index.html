@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Safehouse</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/style.css?v=9">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/style.css?v=7">
 </head>
 <body>
 
@@ -13,7 +13,7 @@
 <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
 
 <button class="menu-btn" onclick="toggleSidebar()">
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
 </button>
 
 <aside class="sidebar" id="sidebar">
@@ -21,13 +21,13 @@
     <div class="logo-icon">
       <svg viewBox="0 0 16 16"><path d="M8 1L2 4v4c0 3.5 2.5 6.5 6 7.5C11.5 14.5 14 11.5 14 8V4L8 1z"/></svg>
     </div>
-    <span class="sidebar-logo-name">Safehouse</span>
+    Safehouse
     <button class="sidebar-close" onclick="closeSidebar()">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
   </div>
   <button class="sidebar-new" onclick="resetUI(); closeSidebar()">
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     New analysis
   </button>
   <div class="sidebar-section-label">Recent</div>
@@ -39,17 +39,16 @@
 <div class="main">
   <div class="hero" id="hero">
     <div class="hero-inner">
-      <div class="hero-eyebrow">Link intelligence</div>
-      <h1 class="hero-title">Where does this<br>link <em>actually</em> go?</h1>
-      <p class="hero-sub">A site could contain things that might compromise your machine the moment you land on it. An image might exploit your OS. Safehouse checks before you click.</p>
+      <h1 class="hero-title">Where does this link actually go?</h1>
+      <p class="hero-sub">A site could contain things that might screw over your computer when you land on it. An image might screw over your entire operating system because of some data. Safehouse makes sure that doesn't happen.</p>
 
       <div class="mode-tabs">
         <button class="mode-tab active" id="tabUrl" onclick="switchMode('url')">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           Analyze URL
         </button>
         <button class="mode-tab" id="tabFile" onclick="switchMode('file')">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
           Scan File
         </button>
       </div>
@@ -58,8 +57,8 @@
       <div id="urlMode">
         <div class="search-wrap">
           <div class="search-input-row">
-            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input class="search-input" type="text" id="urlInput" placeholder="paste a url to analyze..." autocomplete="off" spellcheck="false" />
+            <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="search-input" type="text" id="urlInput" placeholder="Paste a URL to analyze..." autocomplete="off" spellcheck="false" />
             <button class="search-btn" id="analyzeBtn" onclick="analyze()">Analyze</button>
           </div>
         </div>
@@ -69,17 +68,17 @@
       <div id="fileMode" style="display:none">
         <div class="file-zone" id="fileZone" onclick="document.getElementById('fileInput').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
           <div class="file-zone-icon">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           </div>
           <div class="file-zone-text">Drop a file here or click to browse</div>
           <div class="file-zone-sub">Images, PDFs, Office docs, media files · up to 50MB</div>
           <input type="file" id="fileInput" class="file-input" onchange="onFileSelect(event)" accept=".jpg,.jpeg,.png,.gif,.tiff,.tif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.mp3,.mp4,.mov,.avi,.wav,.heic,.heif,.raw,.cr2,.nef,.arw">
         </div>
         <div class="file-selected" id="fileSelected">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
           <span class="file-selected-name" id="fileSelectedName"></span>
           <button class="file-selected-clear" onclick="clearFile()">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
         <button class="file-analyze-btn" id="fileAnalyzeBtn" onclick="analyzeFile()">Scan File</button>
@@ -113,7 +112,7 @@
       <div class="screenshot-card" id="screenshotCard">
         <div class="screenshot-header">
           <span class="screenshot-title">safe preview</span>
-          <span class="screenshot-badge">sandbox · not your browser</span>
+          <span class="screenshot-badge">urlscan.io sandbox - not in your browser</span>
         </div>
         <div class="screenshot-img-wrap" id="screenshotWrap">
           <div class="screenshot-loading" id="screenshotLoading">
@@ -124,9 +123,9 @@
         <div class="screenshot-footer">
           <a class="screenshot-link" id="screenshotReportLink" href="#" target="_blank">
             Full report
-            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15,3 21,3 21,9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15,3 21,3 21,9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           </a>
-          <span class="screenshot-note">Visited by urlscan.io — not your browser</span>
+          <span class="screenshot-note">Visited by urlscan.io - not your browser</span>
         </div>
       </div>
 
@@ -143,7 +142,7 @@
 
       <div class="intel-row" id="intelRow">
         <div class="intel-card">
-          <div class="intel-title">VirusTotal flags</div>
+          <div class="intel-title">VirusTotal</div>
           <div class="intel-val" id="vtVal">0</div>
           <div class="intel-sub" id="vtSub"></div>
         </div>
@@ -153,7 +152,7 @@
           <div class="intel-sub" id="urlscanSub"></div>
           <a class="intel-link" id="urlscanLink" href="#" target="_blank" style="display:none">
             View report
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15,3 21,3 21,9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15,3 21,3 21,9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           </a>
         </div>
       </div>
@@ -186,30 +185,7 @@
   </div>
 </div>
 
-<script src="/static/js/script.js?v=10"></script>
-<script>
-// Override canvas background with static dot pattern
-(function() {
-  const canvas = document.getElementById('bgCanvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  function draw() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const spacing = 32;
-    ctx.fillStyle = 'rgba(255,255,255,0.04)';
-    for (let x = spacing; x < canvas.width; x += spacing) {
-      for (let y = spacing; y < canvas.height; y += spacing) {
-        ctx.beginPath();
-        ctx.arc(x, y, 0.8, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-  }
-  draw();
-  window.addEventListener('resize', draw);
-})();
+<script src="/static/js/script.js?v=10">
 </script>
 </body>
 </html>
